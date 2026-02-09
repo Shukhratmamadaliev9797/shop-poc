@@ -6,7 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "heroku-postbuild": "npm --prefix backend install && npm --prefix backend run build",
+    "heroku-postbuild": "npm --prefix backend install --include=dev && npm --prefix backend run build",
     "start": "npm --prefix backend run start:prod"
   }
 }
