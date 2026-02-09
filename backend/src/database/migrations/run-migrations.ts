@@ -31,21 +31,61 @@ import { AddSupportRequestReadStatus1739091000000 } from './1739091000000-add-su
 const envPath = resolve(__dirname, '../../../.env');
 loadEnv({ path: envPath, override: true });
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value || value.trim().length === 0) {
-    throw new Error(`Missing required env var: ${name}`);
+function getDatabaseConfig():
+  | { url: string; ssl: { rejectUnauthorized: false } }
+  | {
+      host: string;
+      port: number;
+      username: string;
+      password: string;
+      database: string;
+    } {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (databaseUrl) {
+    return {
+      url: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+    };
   }
-  return value;
+
+  const requiredLocalKeys = [
+    'DB_HOST',
+    'DB_PORT',
+    'DB_USER',
+    'DB_PASSWORD',
+    'DB_NAME',
+  ] as const;
+
+  const missing = requiredLocalKeys.filter((key) => {
+    const value = process.env[key];
+    return typeof value !== 'string' || value.trim().length === 0;
+  });
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Migration configuration error. Set DATABASE_URL or provide local DB vars: ${missing.join(', ')}`,
+    );
+  }
+
+  return {
+    host: process.env.DB_HOST!,
+    port: Number(process.env.DB_PORT!),
+    username: process.env.DB_USER!,
+    password: process.env.DB_PASSWORD!,
+    database: process.env.DB_NAME!,
+  };
 }
+
+const dbConfig = getDatabaseConfig();
 
 const dataSource = new DataSource({
   type: 'postgres',
-  host: requireEnv('DB_HOST'),
-  port: Number(requireEnv('DB_PORT')),
-  username: requireEnv('DB_USER'),
-  password: requireEnv('DB_PASSWORD'),
-  database: requireEnv('DB_NAME'),
+  ...('url' in dbConfig
+    ? {
+        url: dbConfig.url,
+        ssl: dbConfig.ssl,
+      }
+    : dbConfig),
   entities: [
     User,
     Customer,

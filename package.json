@@ -1,0 +1,12 @@
+{
+  "name": "phone-sell-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "heroku-postbuild": "npm --prefix backend install && npm --prefix backend run build",
+    "start": "npm --prefix backend run start:prod"
+  }
+}

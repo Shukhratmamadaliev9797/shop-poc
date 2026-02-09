@@ -15,8 +15,21 @@ type RequiredDbEnv = {
   DB_NAME: string;
 };
 
-function getRequiredDbEnv(): RequiredDbEnv {
-  const requiredKeys = [
+function getDatabaseConfig():
+  | { url: string; ssl: { rejectUnauthorized: false } }
+  | ({
+      url?: never;
+      ssl?: never;
+    } & RequiredDbEnv) {
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (databaseUrl) {
+    return {
+      url: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+    };
+  }
+
+  const requiredLocalKeys = [
     'DB_HOST',
     'DB_PORT',
     'DB_USER',
@@ -24,14 +37,14 @@ function getRequiredDbEnv(): RequiredDbEnv {
     'DB_NAME',
   ] as const;
 
-  const missing = requiredKeys.filter((key) => {
+  const missing = requiredLocalKeys.filter((key) => {
     const value = process.env[key];
     return typeof value !== 'string' || value.trim().length === 0;
   });
 
   if (missing.length > 0) {
     throw new Error(
-      `Seed configuration error. Missing required env vars: ${missing.join(', ')}`,
+      `Seed configuration error. Set DATABASE_URL or provide local DB vars: ${missing.join(', ')}`,
     );
   }
 
@@ -48,24 +61,38 @@ let dataSource: DataSource | null = null;
 
 async function run() {
   const shouldReseed = process.argv.includes('--reseed');
-  const dbEnv = getRequiredDbEnv();
+  const dbConfig = getDatabaseConfig();
 
   if (process.env.APP_ENV !== 'production') {
-    console.log('[seed] Database connection config', {
-      DB_HOST: dbEnv.DB_HOST,
-      DB_PORT: dbEnv.DB_PORT,
-      DB_USER: dbEnv.DB_USER,
-      DB_NAME: dbEnv.DB_NAME,
-    });
+    if ('url' in dbConfig) {
+      console.log('[seed] Database connection config', {
+        DATABASE_URL: '[set]',
+        SSL: 'enabled',
+      });
+    } else {
+      console.log('[seed] Database connection config', {
+        DB_HOST: dbConfig.DB_HOST,
+        DB_PORT: dbConfig.DB_PORT,
+        DB_USER: dbConfig.DB_USER,
+        DB_NAME: dbConfig.DB_NAME,
+      });
+    }
   }
 
   dataSource = new DataSource({
     type: 'postgres',
-    host: dbEnv.DB_HOST,
-    port: Number(dbEnv.DB_PORT),
-    username: dbEnv.DB_USER,
-    password: dbEnv.DB_PASSWORD,
-    database: dbEnv.DB_NAME,
+    ...('url' in dbConfig
+      ? {
+          url: dbConfig.url,
+          ssl: dbConfig.ssl,
+        }
+      : {
+          host: dbConfig.DB_HOST,
+          port: Number(dbConfig.DB_PORT),
+          username: dbConfig.DB_USER,
+          password: dbConfig.DB_PASSWORD,
+          database: dbConfig.DB_NAME,
+        }),
     entities: [User],
     synchronize: false,
   });
